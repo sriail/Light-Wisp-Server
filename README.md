@@ -1,9 +1,8 @@
-<div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-<img src="src/wisp-logo.svg" alt="Light Wisp Server" width="200" height="200" />
+<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; text-align: center;">
+  <img src="src/wisp-logo.svg" alt="Light Wisp Server" width="200" height="200" />
+  <h1>Light Wisp Server</h1>
+  <p>Exactly what it is, a Light Wisp Server (No Node.js, Just pure JS and Cloudflare Workers)</p>
 </div>
-
-# Light Wisp Server
-Exactly what it is, a Light Wisp Server (No Node.js, Just pure JS and Cloudflare Workers)
 
 ## Deploy
 Use the Button Below to Deploy To Cloudflare
