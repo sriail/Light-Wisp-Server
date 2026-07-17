@@ -39,7 +39,6 @@ const text_encoder = new TextEncoder();
 const text_decoder = new TextDecoder();
 
 // --- Core Buffer & Packet Logic ---
-// Strictly implements the provided buffer and packet parsing mechanism.
 export class WispBuffer {
   constructor(data) {
     if (data instanceof Uint8Array) {
@@ -68,7 +67,7 @@ export class WispBuffer {
   }
 
   slice(index, size) {
-    // Replicating the exact slice behavior from the reference implementation
+    // Replicating exact slice behavior
     const bytes_slice = this.bytes.slice(index, size);
     return new WispBuffer(bytes_slice);
   }
@@ -97,17 +96,11 @@ export class WispPacket {
   }
 
   static parse_all(buffer) {
-    if (buffer.size < WispPacket.min_size) {
-      throw new TypeError("packet too small");
-    }
+    if (buffer.size < WispPacket.min_size) throw new TypeError("packet too small");
     const packet = WispPacket.parse(buffer);
     const payload_class = packet_classes[packet.type];
-    if (typeof payload_class === 'undefined') {
-      throw new TypeError("invalid packet type");
-    }
-    if (packet.payload_bytes.size < payload_class.min_size) {
-      throw new TypeError("payload too small");
-    }
+    if (typeof payload_class === 'undefined') throw new TypeError("invalid packet type");
+    if (packet.payload_bytes.size < payload_class.min_size) throw new TypeError("payload too small");
     packet.payload = payload_class.parse(packet.payload_bytes);
     return packet;
   }
@@ -148,28 +141,16 @@ export class ConnectPayload {
 export class DataPayload {
   static min_size = 0;
   static type = 0x02;
-  constructor({ data }) {
-    this.data = data;
-  }
-  static parse(buffer) {
-    return new DataPayload({ data: buffer });
-  }
-  serialize() {
-    return this.data;
-  }
+  constructor({ data }) { this.data = data; }
+  static parse(buffer) { return new DataPayload({ data: buffer }); }
+  serialize() { return this.data; }
 }
 
 export class ContinuePayload {
   static min_size = 4;
   static type = 0x03;
-  constructor({ buffer_remaining }) {
-    this.buffer_remaining = buffer_remaining;
-  }
-  static parse(buffer) {
-    return new ContinuePayload({
-      buffer_remaining: buffer.view.getUint32(0, true),
-    });
-  }
+  constructor({ buffer_remaining }) { this.buffer_remaining = buffer_remaining; }
+  static parse(buffer) { return new ContinuePayload({ buffer_remaining: buffer.view.getUint32(0, true) }); }
   serialize() {
     let buffer = new WispBuffer(4);
     buffer.view.setUint32(0, this.buffer_remaining, true);
@@ -180,14 +161,8 @@ export class ContinuePayload {
 export class ClosePayload {
   static min_size = 1;
   static type = 0x04;
-  constructor({ reason }) {
-    this.reason = reason;
-  }
-  static parse(buffer) {
-    return new ClosePayload({
-      reason: buffer.view.getUint8(0),
-    });
-  }
+  constructor({ reason }) { this.reason = reason; }
+  static parse(buffer) { return new ClosePayload({ reason: buffer.view.getUint8(0) }); }
   serialize() {
     let buffer = new WispBuffer(1);
     buffer.view.setUint8(0, this.reason);
@@ -219,21 +194,21 @@ export class InfoPayload {
 }
 
 const packet_classes = {
-  0x01: ConnectPayload,
-  0x02: DataPayload,
-  0x03: ContinuePayload,
-  0x04: ClosePayload,
+  0x01: ConnectPayload, 
+  0x02: DataPayload, 
+  0x03: ContinuePayload, 
+  0x04: ClosePayload, 
   0x05: InfoPayload
 };
 
 // --- Async Queue for strict FIFO TCP buffering ---
 class AsyncQueue {
-  constructor() {
-    this.queue = [];
-    this.waiting = null;
-    this.closed = false;
+  constructor() { 
+    this.queue = []; 
+    this.waiting = null; 
+    this.closed = false; 
   }
-
+  
   put(item) {
     if (this.closed) return;
     if (this.waiting) {
@@ -260,18 +235,19 @@ class AsyncQueue {
     return new Promise((resolve) => { this.waiting = { resolve }; });
   }
 
-  get size() {
-    return this.queue.length;
-  }
+  get size() { return this.queue.length; }
 }
 
 // --- Stream Management ---
 export class ServerStream {
   static buffer_size = 128;
 
-  constructor(stream_id, conn) {
+  constructor(stream_id, conn, hostname, port, type) {
     this.stream_id = stream_id;
     this.conn = conn;
+    this.hostname = hostname;
+    this.port = port;
+    this.type = type;
     this.socket = null;
     this.writer = null;
     this.send_buffer = new AsyncQueue();
@@ -279,29 +255,38 @@ export class ServerStream {
     this.closed = false;
   }
 
-  async connect(type, port, hostname) {
-    if (type === stream_types.UDP) {
+  async setup() {
+    if (this.type === stream_types.UDP) {
       // Cloudflare Workers do not support outbound UDP
       await this.conn.close_stream(this.stream_id, close_reasons.InvalidInfo);
       return;
     }
 
     try {
-      this.socket = connect({ hostname, port: Number(port) });
-      this.writer = this.socket.writable.getWriter();
+      this.socket = connect({ hostname: this.hostname, port: Number(this.port) });
       
-      // Start proxy tasks in the background
-      this.tcp_to_ws().catch((error) => {
-        if (!this.closed) this.close(close_reasons.NetworkError);
-      });
-      this.ws_to_tcp().catch((error) => {
-        if (!this.closed) this.close(close_reasons.NetworkError);
-      });
+      // CRITICAL FIX: Await the socket connection. 
+      // Without this, the V8 runtime throws a NetworkError when read/write is attempted.
+      await this.socket.opened;
+      
+      this.writer = this.socket.writable.getWriter();
     } catch (err) {
       let reason = close_reasons.UnreachableHost;
       if (err?.cause?.code === 'ECONNREFUSED') reason = close_reasons.ConnRefused;
+      else if (err?.cause?.code === 'ETIMEDOUT') reason = close_reasons.NoResponse;
       await this.conn.close_stream(this.stream_id, reason);
+      return;
     }
+
+    // Spec Extension 0x05 (Stream Open Confirmation):
+    // Send a CONTINUE packet immediately after successful socket establishment.
+    this.conn.send_packet(packet_types.CONTINUE, this.stream_id, new ContinuePayload({
+      buffer_remaining: ServerStream.buffer_size
+    }));
+
+    // Start proxy tasks in the background
+    this.tcp_to_ws().catch(() => this.close(close_reasons.NetworkError));
+    this.ws_to_tcp().catch(() => this.close(close_reasons.NetworkError));
   }
 
   async tcp_to_ws() {
@@ -316,7 +301,7 @@ export class ServerStream {
           stream_id: this.stream_id,
           payload: new DataPayload({ data: new WispBuffer(new Uint8Array(value)) })
         });
-        this.conn.ws.send(packet.serialize().bytes);
+        this.conn.send_packet(packet.type, packet.stream_id, packet.payload);
       }
       await this.conn.close_stream(this.stream_id, close_reasons.Voluntary);
     } finally {
@@ -335,14 +320,9 @@ export class ServerStream {
       // Periodically send CONTINUE packets to update the client's buffer remaining
       if (this.packets_sent % (ServerStream.buffer_size / 2) !== 0) continue;
       
-      const packet = new WispPacket({
-        type: packet_types.CONTINUE,
-        stream_id: this.stream_id,
-        payload: new ContinuePayload({
-          buffer_remaining: ServerStream.buffer_size - this.send_buffer.size
-        })
-      });
-      this.conn.ws.send(packet.serialize().bytes);
+      this.conn.send_packet(packet_types.CONTINUE, this.stream_id, new ContinuePayload({
+        buffer_remaining: ServerStream.buffer_size - this.send_buffer.size
+      }));
     }
     await this.close();
   }
@@ -365,12 +345,7 @@ export class ServerStream {
     try { if (this.socket) this.socket.close(); } catch(e) {}
     
     if (reason !== null) {
-      const packet = new WispPacket({
-        type: packet_types.CLOSE,
-        stream_id: this.stream_id,
-        payload: new ClosePayload({ reason })
-      });
-      try { this.conn.ws.send(packet.serialize().bytes); } catch(e) {}
+      this.conn.send_packet(packet_types.CLOSE, this.stream_id, new ClosePayload({ reason }));
     }
   }
 }
