@@ -20,8 +20,8 @@
 <div align="center">
 <div align="left" style="display: inline-block;">
 
-- [ ] Add TCP support (grab tcp in some other way and send it out as alt udp streams to the client, or just wait for them to add it natively???)
-- [ ] Add Domain Mirroring ( Can access on alt Cloudflare domains for the worker, may already work?)
+- [ ] Add TCP support (grab tcp in some other way and send it out as alt udp streams to the client, or just wait for them to add it natively???) WILL NOT HAPPEN
+- [x] Add Domain Mirroring ( Can access on alt Cloudflare domains for the worker, may already work?)
 - [ ] Add Rate Limiting in editable JS File.
 
 </div>
