@@ -25,6 +25,7 @@
 - [ ] Add Rate Limiting in editable JS File.
 - [ ] Wisp v2.1???
 
+  <h2>Notes</h2>
 <p> Writen By Sriail </p>
 
 </div>
