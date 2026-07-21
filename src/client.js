@@ -1,7 +1,7 @@
 // client.js
 'use strict';
 
-import { ServerStream, packet_types, stream_types, close_reasons } from './server.js';
+import { ServerStream, FetchStream, packet_types, stream_types, close_reasons } from './server.js';
 
 export class WispClient {
   constructor(ws) {
@@ -30,7 +30,7 @@ export class WispClient {
     const u8 = new Uint8Array(buf);
     
     view.setUint8(0, type);
-    view.setUint32(1, stream_id, true); // Little-endian
+    view.setUint32(1, stream_id, true);
     
     if (payload_len > 0) {
       u8.set(new Uint8Array(payload_buffer), 5);
@@ -41,13 +41,9 @@ export class WispClient {
 
   async onMessage(event) {
     let buf;
-    if (event.data instanceof ArrayBuffer) {
-      buf = event.data;
-    } else if (event.data instanceof Blob) {
-      buf = await event.data.arrayBuffer();
-    } else {
-      return; 
-    }
+    if (event.data instanceof ArrayBuffer) buf = event.data;
+    else if (event.data instanceof Blob) buf = await event.data.arrayBuffer();
+    else return; 
 
     if (buf.byteLength < 5) return;
     
@@ -62,14 +58,18 @@ export class WispClient {
         if (payload.length < 3) return;
         
         const stream_type = payload[0];
-        // Offset 6 in the original buffer (5 byte header + 1 byte stream type)
         const port = view.getUint16(6, true); 
         const hostname = new TextDecoder().decode(payload.slice(3)).trim();
         
-        const stream = new ServerStream(stream_id, this, hostname, port, stream_type);
-        this.streams.set(stream_id, stream);
+        // HYBRID LOGIC: Use Fetch() for HTTP ports to bypass Cloudflare's TCP block
+        let stream;
+        if (port === 80 || port === 443 || port === 8080 || port === 8443) {
+          stream = new FetchStream(stream_id, this, hostname, port, stream_type);
+        } else {
+          stream = new ServerStream(stream_id, this, hostname, port, stream_type);
+        }
         
-        // Fire and forget. setup() runs in the background, preserving CPU time.
+        this.streams.set(stream_id, stream);
         stream.setup().catch(err => console.error("Stream setup failed:", err));
         return;
       }
@@ -78,18 +78,15 @@ export class WispClient {
       if (!stream) return;
 
       if (type === packet_types.DATA) {
-        // Synchronously push to queue. Zero await blocking.
         stream.put_data(payload);
       } else if (type === packet_types.CLOSE) {
         this.close_stream(stream_id, null, true);
       }
     } catch (error) {
-      // Prevent malformed packets from crashing the worker
       console.error("onMessage error:", error);
     }
   }
 
-  // FIX: Added `reason` parameter to properly pass close reasons to the client
   async close_stream(stream_id, reason = null, quiet = false) {
     const stream = this.streams.get(stream_id);
     if (!stream) return;
@@ -98,9 +95,7 @@ export class WispClient {
   }
 
   cleanup() {
-    for (const stream of this.streams.values()) {
-      stream.close(close_reasons.NetworkError);
-    }
+    for (const stream of this.streams.values()) stream.close(close_reasons.NetworkError);
     this.streams.clear();
   }
 }
