@@ -50,7 +50,7 @@ export const INDEX_HTML = `<!DOCTYPE html>
             const buf = new ArrayBuffer(5 + payload.length);
             const view = new DataView(buf);
             view.setUint8(0, type);
-            view.setUint32(1, sId, true); // Little-endian
+            view.setUint32(1, sId, true);
             new Uint8Array(buf, 5).set(payload);
             return buf;
         }
@@ -100,9 +100,6 @@ export const INDEX_HTML = `<!DOCTYPE html>
                 } else if (type === packet_types.CLOSE) {
                     const reason = payload.length > 0 ? payload[0] : 0;
                     log('Received CLOSE packet. Reason: 0x' + reason.toString(16));
-                    if (reason === 0x41) {
-                        log('NOTE: 0x41 indicates the Cloudflare Worker is on the Free Plan, which blocks outbound TCP sockets.');
-                    }
                     log('Stream closed.');
                 }
             };
@@ -115,7 +112,6 @@ export const INDEX_HTML = `<!DOCTYPE html>
             respEl.value = '';
             let host = document.getElementById('host').value;
             
-            // Sanitize URL to pure hostname without using regex
             host = host.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0];
             
             streamId = Math.floor(Math.random() * 1000) + 1;
