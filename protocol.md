@@ -1,7 +1,9 @@
-# Wisp - A Lightweight Multiplexing Websocket Proxy Protocol
+# Wisp Server Spec for This Peoject
 
-Version 1.2 - written by [@ading2210](https://github.com/ading2210)
-Codespec for V8 at the end writen by [@sriail](https://github.com/sriail)
+Additions Come in this order, **Recource Efficency, Functionality, Speed, and Fetures**
+
+Contains Parts of the Version 1.2 Spec - written by [Ading2210](https://github.com/ading2210)
+Codespec for V8 at the end writen by [Sriail](https://github.com/sriail)
 
 ## About
 Wisp is designed to be a low-overhead, easy to implement protocol for proxying multiple TCP/UDP sockets over a single websocket connection. Wisp is simpler and has better error handling abilities compared to alternatives such as penguin-rs.
@@ -102,5 +104,6 @@ It is up to the server implementation to interpret the prefix. It may be ignored
 
 ### Establishing a Websocket Connection
 The client must establish the connection by performing a standard websocket handshake. The `Sec-WebSocket-Protocol` header does not need to be set.
-
 Immediately after a websocket connection is established, the server must send a CONTINUE packet containing the initial buffer size for each stream. The stream ID for this packet must be set to 0, which corresponds to the version of the Wisp protocol (0 means Wisp v1). The client must wait for this CONTINUE packet to be received before beginning any communications. The purpose of this packet is to ensure that the client does not have to wait for a CONTINUE packet for the creation of each stream, reducing the overall delay.
+
+
