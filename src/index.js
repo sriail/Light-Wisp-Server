@@ -5,15 +5,10 @@ export const INDEX_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Wisp V1.2 Proxy Tester</title>
-    <style>
-        body { font-family: monospace; padding: 20px; }
-        textarea { width: 100%; box-sizing: border-box; }
-        .row { margin-bottom: 10px; }
-    </style>
+    <title>Bare Wisp Server</title>
 </head>
 <body>
-    <h2>Wisp V1.2 Local Relay Tester</h2>
+    <h2>Test This Wisp Endpoint</h2>
     <div class="row">
         <label>Target Host: </label>
         <input type="text" id="host" value="example.com" style="width: 300px;">
