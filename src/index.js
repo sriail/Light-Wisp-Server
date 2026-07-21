@@ -66,8 +66,6 @@ export const INDEX_HTML = `<!DOCTYPE html>
             ws.send(makePacket(packet_types.CONNECT, streamId, payload));
             log('Sent CONNECT packet for ' + host + ':80 (Stream ID: ' + streamId + ')');
             
-            // In V1.2, we can send DATA immediately, even before the TCP socket connects.
-            // The server will buffer it.
             if (pendingData) {
                 ws.send(makePacket(packet_types.DATA, streamId, pendingData));
                 log('Sent HTTP GET request as DATA packet');
@@ -114,8 +112,8 @@ export const INDEX_HTML = `<!DOCTYPE html>
             respEl.value = '';
             let host = document.getElementById('host').value;
             
-            // Sanitize URL to pure hostname
-            host = host.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+            // Sanitize URL to pure hostname without using regex
+            host = host.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0];
             
             streamId = Math.floor(Math.random() * 1000) + 1;
             handshakeComplete = false;
@@ -132,12 +130,10 @@ export const INDEX_HTML = `<!DOCTYPE html>
                     }
                 }, 100);
             } else {
-                // If already connected, just open a new stream
                 sendConnect(host);
             }
         };
 
-        // Auto-connect on load
         connectWs();
     </script>
 </body>
