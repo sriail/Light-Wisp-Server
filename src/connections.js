@@ -9,6 +9,7 @@ export default {
     const url = new URL(request.url);
     const upgradeHeader = request.headers.get('Upgrade');
 
+    // Serve the test HTML page for standard HTTP requests
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
       if (url.pathname === '/' || url.pathname === '/index.html') {
         return new Response(INDEX_HTML, {
@@ -18,14 +19,13 @@ export default {
       return new Response('Not Found', { status: 404 });
     }
 
+    // Spec V1 for Rollback: The URL of the websocket should always end with a trailing forward slash (/)
     if (!url.pathname.endsWith('/')) {
       return new Response('Not Found', { status: 404 });
     }
 
-    const secWsProtocol = request.headers.get('Sec-WebSocket-Protocol');
-    if (!secWsProtocol) {
-      return new Response('Wisp v1 is not supported by this endpoint', { status: 400 });
-    }
+    // Spec V1: The Sec-WebSocket-Protocol header does not need to be set.
+    // We accept all WebSocket upgrades.
 
     const [clientSocket, serverSocket] = Object.values(new WebSocketPair());
     serverSocket.accept();
@@ -36,9 +36,6 @@ export default {
     return new Response(null, {
       status: 101,
       webSocket: clientSocket,
-      headers: {
-        'Sec-WebSocket-Protocol': secWsProtocol.split(',')[0].trim()
-      }
     });
   }
 };
