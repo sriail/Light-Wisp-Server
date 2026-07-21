@@ -6,11 +6,6 @@ export const INDEX_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Wisp Proxy Tester</title>
-    <style>
-        body { font-family: monospace; padding: 20px; }
-        textarea { width: 100%; box-sizing: border-box; }
-        .row { margin-bottom: 10px; }
-    </style>
 </head>
 <body>
     <h2>Wisp Local Relay Tester (Free Plan HTTP Mode)</h2>
